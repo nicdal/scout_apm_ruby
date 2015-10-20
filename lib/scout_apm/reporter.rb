@@ -75,7 +75,7 @@ module ScoutApm
         logger.debug "/#{type} FAILED: #{response.inspect}"
       end
     rescue Exception
-      logger.debug "Exception sending request to server: #{$!.message}\n#{$!.backtrace}"
+      logger.debug "Exception sending request to server: #{$!.message}\nBacktrace: #{$!.backtrace}\nCaller: #{caller.join("\n")}"
     ensure
       response
     end
