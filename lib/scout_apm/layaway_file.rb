@@ -1,10 +1,100 @@
 # Logic for the serialized file access
 module ScoutApm
+  class LayawayFileLock
+    attr_reader :depth
+
+    def initialize
+      @depth = 0
+      @obtain_block  = lambda {}
+      @release_block = lambda {}
+    end
+
+    def locked?
+      depth > 0
+    end
+
+    def increment!
+      if depth == 0
+        ScoutApm::Agent.instance.logger.debug("Obtaining Layaway Lock")
+        @obtain_block.call
+        @depth += 1
+      else
+        @depth += 1
+        ScoutApm::Agent.instance.logger.debug("Incremented Layway lock count to #{depth}")
+      end
+    end
+
+    def decrement!
+      @depth -= 1
+      if depth == 0
+        ScoutApm::Agent.instance.logger.debug("Releasing Layaway file Lock")
+        @release_block.call
+      else
+        ScoutApm::Agent.instance.logger.debug("Decremented Layway lock count to #{depth}")
+      end
+    end
+
+    def obtain_block(&block)
+      @obtain_block = block
+      self
+    end
+
+    def release_block(&block)
+      @release_block = block
+      self
+    end
+  end
+
   class LayawayFile
+    attr_reader :lock
+
+    def initialize
+      @lock = make_lock
+    end
+
+    def make_lock
+      LayawayFileLock.new.obtain_block do
+        @f = File.open(path, File::RDWR | File::CREAT)
+        @f.flock(File::LOCK_EX)
+        @data = get_data(@f) # After locking, read in the data
+      end.release_block do
+        write(@f, dump(@data)) # Before unlocking, write the data back to the file
+        @f.flock(File::LOCK_UN)
+        @f.close
+        @f = nil
+      end
+    end
+
     def path
       ScoutApm::Agent.instance.config.value("data_file") ||
         "#{ScoutApm::Agent.instance.default_log_path}/scout_apm.db"
     end
+
+    # Only get the lock at the outer layer, and let inner layers use it.
+    # Maintain a count of how many layers of locks we're in, so we know when we
+    # exit the last one, and can release it.
+    def with_lock
+      lock.increment!
+      yield
+    ensure
+      lock.decrement!
+    end
+
+    def read_and_write
+      with_lock do
+        @data = (yield @data)
+      end
+    rescue Errno::ENOENT, Exception  => e
+      ScoutApm::Agent.instance.logger.error("Unable to access the layaway file [#{e.message}]. " +
+                                            "The user running the app must have read & write access. " +
+                                            "Change the path by setting the `data_file` key in scout_apm.yml"
+                                           )
+      ScoutApm::Agent.instance.logger.debug(e.backtrace.join("\n\t"))
+    end
+
+    ###########################################################################################################
+    ###########################################################################################################
+
 
     def dump(object)
       Marshal.dump(object)
@@ -22,42 +112,19 @@ module ScoutApm
       nil
     end
 
-    def read_and_write
-      File.open(path, File::RDWR | File::CREAT) do |f|
-        f.flock(File::LOCK_EX)
-        begin
-          result = (yield get_data(f))
-          f.rewind
-          f.truncate(0)
-          if result
-            write(f, dump(result))
-          end
-        ensure
-          f.flock(File::LOCK_UN)
-        end
-      end
-    rescue Errno::ENOENT, Exception  => e
-      ScoutApm::Agent.instance.logger.error("Unable to access the layaway file [#{e.message}]. " +
-                                            "The user running the app must have read & write access. " +
-                                            "Change the path by setting the `data_file` key in scout_apm.yml"
-                                           )
-      ScoutApm::Agent.instance.logger.debug(e.backtrace.join("\n\t"))
-
-      # ensure the in-memory metric hash is cleared so data doesn't continue to accumulate.
-      # ScoutApm::Agent.instance.store.metric_hash = {}
-    end
-
     def get_data(f)
       data = read_until_end(f)
-      result = load(data)
-      f.truncate(0)
-      result
+      ScoutApm::Agent.instance.logger.debug("Reading bytes: #{data.length} from layaway file")
+      load(data)
     end
 
     def write(f, string)
-      result = 0
-      while (result < string.length)
-        result += f.write_nonblock(string)
+      ScoutApm::Agent.instance.logger.debug("Writing bytes: #{string.length} to layaway file")
+      f.rewind
+      f.truncate(0)
+      bytes_written = 0
+      while (bytes_written < string.length)
+        bytes_written += f.write_nonblock(string)
       end
     rescue Errno::EAGAIN, Errno::EINTR
       IO.select(nil, [f])
@@ -77,3 +144,5 @@ module ScoutApm
     end
   end
 end
+
+

@@ -12,6 +12,7 @@ module ScoutApm
     # file, and just drop it if so. There's no important data there, since it's
     # used mostly for just syncronizing between processes
     def verify_layaway_file_contents
+      ScoutApm::Agent.instance.logger.debug("Verify Layway File Contents")
       file.read_and_write do |existing_data|
         existing_data ||= {}
         if existing_data.keys.all?{|k| k.is_a? StoreReportingPeriodTimestamp } &&
@@ -24,6 +25,7 @@ module ScoutApm
     end
 
     def add_reporting_period(time, reporting_period)
+      ScoutApm::Agent.instance.logger.debug("Add Reporting Period for #{time}")
       file.read_and_write do |existing_data|
         existing_data ||= Hash.new
         existing_data.merge(time => reporting_period) {|key, old_val, new_val|
@@ -36,6 +38,7 @@ module ScoutApm
 
     # Returns an array of ReportingPeriod objects that are ready to be pushed to the server
     def periods_ready_for_delivery
+      ScoutApm::Agent.instance.logger.debug("Ready for Delivery")
       ready_for_delivery = []
 
       file.read_and_write do |existing_data|

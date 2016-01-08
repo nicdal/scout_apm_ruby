@@ -15,20 +15,26 @@ module ScoutApm
       #
       # At any given point, there is data in each of those steps, moving its way through the process
       def process_metrics
-        # First we write the previous minute's data to the shared-across-process layaway file.
-        store.write_to_layaway(layaway)
+        # To minimize the usage of the layaway file lock (a point of contention
+        # across several processes), do all of this inside a single lock.
+        reporting_periods = []
+        layaway.file.with_lock do
 
-        # Then attempt to send 2 minutes ago's data up to the server.  This
-        # only acctually occurs if this process is the first to wake up this
-        # minute.
-        report_to_server
+          # First we write the previous minute's data to the shared-across-process layaway file.
+          store.write_to_layaway(layaway)
+
+          # Find data that's ready to go. This only returns anything if this
+          # process is the first to wake up this minute.
+          reporting_periods = layaway.periods_ready_for_delivery
+        end
+
+        report_to_server(reporting_periods)
       end
 
       MAX_AGE_TO_REPORT = (10 * 60) # ten minutes as seconds
 
       # In a running app, one process will get one period ready for delivery, the others will see 0.
-      def report_to_server
-        reporting_periods = layaway.periods_ready_for_delivery
+      def report_to_server(reporting_periods)
         reporting_periods.reject! {|rp| rp.timestamp.age_in_seconds > MAX_AGE_TO_REPORT }
         reporting_periods.each do |rp|
           deliver_period(rp)
