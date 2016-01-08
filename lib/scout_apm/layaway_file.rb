@@ -30,7 +30,7 @@ module ScoutApm
       if depth == 0
         ScoutApm::Agent.instance.logger.debug("Releasing Layaway file Lock")
         @release_block.call
-        ScoutApm::Agent.instance.logger.debug("Held lock for: #{Time.now.to_f - @locked_obtained_at.to_f} seconds")
+        ScoutApm::Agent.instance.logger.debug("Held lock for: #{(Time.now.to_f - @locked_obtained_at.to_f).round(3)} seconds")
         @locked_obtained_at = nil
       else
         ScoutApm::Agent.instance.logger.debug("Decremented Layway lock count to #{depth}")
@@ -55,14 +55,37 @@ module ScoutApm
       @lock = make_lock
     end
 
+    def log_time(thing)
+      t = Time.now
+      result = yield
+      ScoutApm::Agent.instance.logger.debug("#{thing} took #{(Time.now.to_f - t.to_f).round(3)} seconds")
+      result
+    end
+
     def make_lock
       LayawayFileLock.new.obtain_block do
-        @f = File.open(path, File::RDWR | File::CREAT)
-        @f.flock(File::LOCK_EX)
+        log_time "Opening file" do
+          @f = File.open(path, File::RDWR | File::CREAT)
+        end
+
+        log_time "Obtaining exclusive lock" do
+          @f.flock(File::LOCK_EX)
+        end
+
         @data = get_data(@f) # After locking, read in the data
       end.release_block do
-        write(@f, dump(@data)) # Before unlocking, write the data back to the file
-        @f.flock(File::LOCK_UN)
+        dumped = log_time "Marshalling data" do
+          dumped = dump(@data)
+        end
+
+        log_time "Writing data" do
+          write(@f, dump(@data)) # Before unlocking, write the data back to the file
+        end
+
+        log_time "Releasing lock" do
+          @f.flock(File::LOCK_UN)
+        end
+
         @f.close
         @f = nil
       end
@@ -78,7 +101,9 @@ module ScoutApm
     # exit the last one, and can release it.
     def with_lock
       lock.increment!
-      yield
+      log_time "In logic code" do
+        yield
+      end
     ensure
       lock.decrement!
     end
@@ -116,9 +141,15 @@ module ScoutApm
     end
 
     def get_data(f)
-      data = read_until_end(f)
+      data = log_time "Reading file data" do
+        data = read_until_end(f)
+      end
+
       ScoutApm::Agent.instance.logger.debug("Reading bytes: #{data.length} from layaway file")
-      load(data)
+
+      log_time "Parsing data" do
+        load(data)
+      end
     end
 
     def write(f, string)
