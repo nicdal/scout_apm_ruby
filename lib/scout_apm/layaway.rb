@@ -39,7 +39,7 @@ module ScoutApm
     # Returns an array of ReportingPeriod objects that are ready to be pushed to the server
     def periods_ready_for_delivery
       ScoutApm::Agent.instance.logger.debug("Ready for Delivery")
-      ready_for_delivery = []
+      ready_for_delivery = {}
 
       file.read_and_write do |existing_data|
         existing_data ||= {}
