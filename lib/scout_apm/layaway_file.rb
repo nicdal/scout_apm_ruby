@@ -17,6 +17,7 @@ module ScoutApm
       if depth == 0
         ScoutApm::Agent.instance.logger.debug("Obtaining Layaway Lock")
         @obtain_block.call
+        @locked_obtained_at = Time.now
         @depth += 1
       else
         @depth += 1
@@ -29,6 +30,8 @@ module ScoutApm
       if depth == 0
         ScoutApm::Agent.instance.logger.debug("Releasing Layaway file Lock")
         @release_block.call
+        ScoutApm::Agent.instance.logger.debug("Held lock for: #{Time.now.to_f - @locked_obtained_at.to_f} seconds")
+        @locked_obtained_at = nil
       else
         ScoutApm::Agent.instance.logger.debug("Decremented Layway lock count to #{depth}")
       end
