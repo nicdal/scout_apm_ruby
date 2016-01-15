@@ -111,6 +111,10 @@ require 'scout_apm/serializers/deploy_serializer'
 
 require 'scout_apm/middleware'
 
+### FOR DEBUG PURPOSES
+require 'scout_apm/connection_pool_tracer'
+ScoutApm::ConnectionPoolTracer.new.install
+
 if defined?(Rails) && defined?(Rails::VERSION) && defined?(Rails::VERSION::MAJOR) && Rails::VERSION::MAJOR >= 3 && defined?(Rails::Railtie)
   module ScoutApm
     class Railtie < Rails::Railtie
