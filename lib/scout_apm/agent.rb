@@ -186,7 +186,10 @@ module ScoutApm
     # processes data, either saving it to disk or reporting to Scout.
     def start_background_worker
       logger.info "Not starting background worker, already started" and return if background_worker_running?
+      logger.info "Not starting background worker, due to configuration. NO METRICS WILL BE REPORTED. THIS MODE IS FOR DEBUGGING ONLY" and return if config.value('debug_disable_background_worker')
+
       logger.info "Initializing worker thread."
+
       @background_worker = ScoutApm::BackgroundWorker.new
       @background_worker_thread = Thread.new do
         @background_worker.start {
