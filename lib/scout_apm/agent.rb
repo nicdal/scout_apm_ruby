@@ -127,6 +127,7 @@ module ScoutApm
     # Sends a ping to APM right away, smoothes out onboarding
     # Collects up any relevant info (framework, app server, system time, ruby version, etc)
     def app_server_load_hook
+      logger.info "Not sending AppServerLoad details, due to configuration. THIS MODE IS FOR DEBUGGING ONLY" and return if config.value('debug_disable_app_server_load')
       AppServerLoad.new.run
     end
 
