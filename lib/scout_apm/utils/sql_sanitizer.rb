@@ -36,7 +36,7 @@ module ScoutApm
         sql.gsub!(PSQL_REMOVE_STRINGS, '?')
         sql.gsub!(PSQL_REMOVE_INTEGERS, '?')
         sql.gsub!(PSQL_IN_CLAUSE, 'IN (?)')
-        sql.gsub!(TRAILING_SPACES, '')
+        sql.strip!
         sql
       end
 
@@ -47,7 +47,7 @@ module ScoutApm
         sql.gsub!(MYSQL_REMOVE_INTEGERS, '?')
         sql.gsub!(MYSQL_IN_CLAUSE, '?')
         sql.gsub!(MULTIPLE_QUESTIONS, '?')
-        sql.gsub!(TRAILING_SPACES, '')
+        sql.strip!
         sql
       end
 
@@ -55,8 +55,8 @@ module ScoutApm
         sql.gsub!(SQLITE_VAR_INTERPOLATION, '')
         sql.gsub!(SQLITE_REMOVE_STRINGS, '?')
         sql.gsub!(SQLITE_REMOVE_INTEGERS, '?')
-        sql.gsub!(MULTIPLE_SPACES, ' ')
-        sql.gsub!(TRAILING_SPACES, '')
+        sql.strip!
+        sql
       end
 
       def has_encodings?(encodings=['UTF-8', 'binary'])
