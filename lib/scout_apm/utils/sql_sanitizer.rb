@@ -36,7 +36,6 @@ module ScoutApm
         sql.gsub!(PSQL_REMOVE_STRINGS, '?')
         sql.gsub!(PSQL_REMOVE_INTEGERS, '?')
         sql.gsub!(PSQL_IN_CLAUSE, 'IN (?)')
-        sql.gsub!(MULTIPLE_SPACES, ' ')
         sql.gsub!(TRAILING_SPACES, '')
         sql
       end
