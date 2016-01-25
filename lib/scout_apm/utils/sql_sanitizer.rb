@@ -37,7 +37,6 @@ module ScoutApm
         sql.gsub!(PSQL_REMOVE_INTEGERS, '?')
         sql.gsub!(PSQL_IN_CLAUSE, 'IN (?)')
         sql.strip!
-        sql
       end
 
       def to_s_mysql
